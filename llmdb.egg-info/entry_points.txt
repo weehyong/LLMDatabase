@@ -1,0 +1,2 @@
+[console_scripts]
+llmdb = llmdb.cli:main
