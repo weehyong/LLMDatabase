@@ -36,12 +36,8 @@ PAGE_SIZE: int = 8192
 PAGE_MAGIC: int = 0xDBDB0001
 PAGE_HEADER_SIZE: int = 16
 
-_MAGIC_FMT = "<I"      # uint32
-_HEADER_FMT = "<IIHHH"  # magic, page_id, lsn, free_offset, slot_count  → 14 bytes
-# Pad header to 16 bytes
-_HEADER_STRUCT = struct.Struct("<IIHHH xx")  # 4+4+4+2+2 + 2-pad = 18? recalc below
-# Let's use a clean layout:
-_HEADER_STRUCT = struct.Struct("<I I I H H")  # magic(4) page_id(4) lsn(4) free(2) slots(2) = 16
+# Page header: magic(4) page_id(4) lsn(4) free_offset(2) slot_count(2) = 16 bytes
+_HEADER_STRUCT = struct.Struct("<I I I H H")
 assert _HEADER_STRUCT.size == 16
 
 
