@@ -174,20 +174,23 @@ class Collection:
         limit: int = 100,
         offset: int = 0,
     ) -> list[Document]:
-        """List documents, optionally filtered by tags."""
+        """List documents, optionally filtered by tags.
+
+        When *tags* are provided, filtering is performed in Python because tags
+        are stored as a JSON array (not individual indexed rows).  All rows are
+        fetched up-front so that *offset* and *limit* are applied over the
+        complete filtered result set, ensuring correct pagination.
+        """
         if tags:
-            # Filter in Python after fetching (tags stored as JSON array)
             rows = self._storage.execute(
                 "SELECT id, collection, data, tags, score, created_at, updated_at "
                 "FROM documents WHERE collection = ? "
-                "ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (self.name, limit + offset, 0),
+                "ORDER BY created_at DESC",
+                (self.name,),
             ).fetchall()
             docs = [self._row_to_doc(r) for r in rows]
-            filtered = [
-                d for d in docs if any(t in d.tags for t in tags)
-            ]
-            return filtered[offset : offset + limit]
+            filtered = [d for d in docs if any(t in d.tags for t in tags)]
+            return filtered[offset: offset + limit]
         rows = self._storage.execute(
             "SELECT id, collection, data, tags, score, created_at, updated_at "
             "FROM documents WHERE collection = ? "

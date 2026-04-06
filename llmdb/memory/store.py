@@ -206,26 +206,32 @@ class MemoryStore:
         limit: int = 100,
         offset: int = 0,
     ) -> list[Memory]:
-        """List memories with optional filters, ordered by importance desc."""
-        sql = (
-            "SELECT * FROM memories WHERE importance >= ? "
-        )
+        """List memories with optional filters, ordered by importance desc.
+
+        When *tags* are provided the filtering is performed in Python after
+        fetching from SQLite (tags are stored as a JSON array).  To guarantee
+        correct pagination we load all matching rows up-front and then slice.
+        """
+        sql = "SELECT * FROM memories WHERE importance >= ? "
         params: list[Any] = [min_importance]
 
         if memory_type is not None:
             sql += "AND memory_type = ? "
             params.append(MemoryType(memory_type).value)
 
-        sql += "ORDER BY importance DESC, created_at DESC LIMIT ? OFFSET ?"
-        params.extend([limit + (len(tags or [])) * 10, offset])
-
-        rows = self._storage.execute(sql, tuple(params)).fetchall()
-        mems = [self._row_to_memory(r) for r in rows]
-
         if tags:
+            # Load all matching rows so that tag filtering + offset/limit are
+            # applied over the full result set (not a pre-truncated page).
+            sql += "ORDER BY importance DESC, created_at DESC"
+            rows = self._storage.execute(sql, tuple(params)).fetchall()
+            mems = [self._row_to_memory(r) for r in rows]
             mems = [m for m in mems if any(t in m.tags for t in tags)]
+            return mems[offset: offset + limit]
 
-        return mems[: limit]
+        sql += "ORDER BY importance DESC, created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        rows = self._storage.execute(sql, tuple(params)).fetchall()
+        return [self._row_to_memory(r) for r in rows]
 
     def search(
         self,

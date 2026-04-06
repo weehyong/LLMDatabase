@@ -183,14 +183,25 @@ class QueryEngine:
                 )
 
         if sort_by is not None:
-            results.sort(
-                key=lambda d: (_get_nested(d.data, sort_by) is None,
-                               _get_nested(d.data, sort_by)),
-                reverse=descending,
-            )
+            def _sort_key(d: Document) -> tuple:
+                val = _get_nested(d.data, sort_by)
+                return (val is None, val)
+
+            results.sort(key=_sort_key, reverse=descending)
 
         return results[offset: offset + limit]
 
     def count(self, filter: dict[str, Any] | None = None) -> int:
-        """Return the number of documents matching a filter."""
+        """Return the number of documents matching a filter.
+
+        When no filter is provided, delegates to a SQL COUNT for efficiency.
+        When a filter is given, loads matching documents into memory (the
+        filter is evaluated in Python, not SQL).
+        """
+        if filter is None:
+            row = self._storage.execute(
+                "SELECT COUNT(*) AS c FROM documents WHERE collection = ?",
+                (self._collection,),
+            ).fetchone()
+            return row["c"] if row else 0
         return len(self.execute(filter, limit=10_000_000))
